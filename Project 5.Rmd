@@ -1,0 +1,116 @@
+---
+title: "Project 5"
+output: pdf_document
+date: "2024-04-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Part A answered in report above.
+Part B
+```{r}
+library(ISLR2)
+data("Hitters")
+View(Hitters)
+```
+```{r}
+# clean the data set
+hitters_cleaned <- na.omit(Hitters)
+
+# extract the predictor variables
+# keping response variable Salary to keep dataframe intact
+predictors <- hitters_cleaned[,-which(names(hitters_cleaned) == "Salary"), 
+                              drop = FALSE]
+columns <- sapply(predictors, is.numeric)
+numeric_predictors <- predictors[, columns]
+standardized_predictors <- scale(numeric_predictors)
+pca_result <- prcomp(standardized_predictors)
+summary(pca_result)
+
+# plot the scree plot
+screeplot(pca_result, type = "lines")
+```
+Part C
+```{r}
+correlations <- pca_result$rotation[,1:2]
+print(correlations)
+biplot(pca_result)
+```
+Question 2
+Part A
+```{r}
+library(pls)
+# creating new variable
+hitters_cleaned$LogSalary <- log(hitters_cleaned$Salary)
+library(boot)
+linearreg.fit <- glm(LogSalary ~., data = hitters_cleaned)
+cv.linearreg <- cv.glm(hitters_cleaned, linearreg.fit, K = nrow(hitters_cleaned))
+cv.linearreg$delta[1]
+```
+Part B
+```{r}
+# fitting the pcr with loocv
+pcr.fit <- pcr(LogSalary ~., data = hitters_cleaned, scale = TRUE,
+               validation = "CV", segments = 10)
+validationplot(pcr.fit, val.type = "MSEP")
+m_pcr <- which.min(MSEP(pcr.fit)$val[1, , 1])
+print(m_pcr)
+
+# computing the test MSE
+summary(pcr.fit, ncomp = m_pcr)
+sqrt(MSEP(pcr.fit)$val[1, m_pcr,1])
+```
+Part C
+```{r}
+pls.fit <- plsr(LogSalary ~ ., data = hitters_cleaned, scale = TRUE,
+                validate = "CV", segments = 10)
+# make validation plot
+validationplot(pls.fit, val.type = "MSEP")
+m_pls <- which.min(MSEP(pls.fit)$val[1,,1])
+print(m_pls)
+
+# computing the test MSE
+summary(pls.fit, ncomp = m_pls)
+sqrt(MSEP(pls.fit)$val[1, m_pls,1])
+```
+Part D
+```{r}
+library(glmnet)
+# matrix
+x <- model.matrix(LogSalary ~., data = hitters_cleaned)[,-1]
+y <- hitters_cleaned$LogSalary
+
+# ridge regression using lambda chosen by LOOCV and glmnet
+ridge.fit <- cv.glmnet(x, y, alpha = 0, nfolds = nrow(hitters_cleaned))
+# make plot to find best lambda
+plot(ridge.fit)
+lamda <- ridge.fit$lambda.min
+
+# doing test MSE for optimal lambda
+ridge.predict <- predict(ridge.fit, s = lamda, newx = x)
+mean((ridge.predict - y)^2)
+```
+Question 3
+Part A
+```{r}
+hitters_cleaned$LogSalary <- log(hitters_cleaned$Salary)
+model = lm(LogSalary ~., data = hitters_cleaned)
+summary(model)
+hitters_cleaned$LogSalary <- log(hitters_cleaned$Salary)
+
+# fitting a polynomila regression mode with degree 3
+fitted_model <- lm(LogSalary ~ poly(Years, 3), data = hitters_cleaned)
+summary(fitted_model)
+# plot raw data
+plot(LogSalary ~ Years, data = hitters_cleaned, main = "Fitted Data", xlab = "Years",
+     ylab = "Log(Salary)")
+# generate predictions
+years <- seq(min(hitters_cleaned$Years), max(hitters_cleaned$Years),
+             length.out = 100)
+predictions <- predict(fitted_model, newdata = data.frame(Years = years))
+
+# plot the curve
+lines(years, predictions, col = "blue", lwd = 2)
+
+```
